@@ -1,0 +1,27 @@
+export {
+  BOARD_SIZE,
+  DIFFICULTIES,
+  PLAYER_SYMBOLS,
+  WINNING_LINES,
+  GameRuleError,
+  assertBoard,
+  boardFromCode,
+  boardToCode,
+  countSymbols,
+  createBoard,
+  getLegalMoves,
+  getNextSymbol,
+  getOpponent,
+  getOutcome,
+  isGameOver,
+  playMove,
+  type Board,
+  type Cell,
+  type Difficulty,
+  type GameOutcome,
+  type GameRuleErrorCode,
+  type PlayerSymbol,
+  type WinningLine,
+} from './board.js';
+
+export { chooseAiMove, type AiMoveOptions } from './ai.js';

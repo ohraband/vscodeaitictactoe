@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GameMode {
+  SINGLE
+  MULTI
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum GameStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+  ABANDONED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Symbol {
+  X
+  O
+}
+
+enum Winner {
+  X
+  O
+  DRAW
+}
+
+enum FinishReason {
+  LINE
+  DRAW
+  TIMEOUT
+  FORFEIT
+  ABANDONED
+}
+
+model Player {
+  id                    String   @id @default(uuid()) @db.Uuid
+  displayName           String   @db.VarChar(20)
+  displayNameNormalized String   @unique @db.VarChar(64)
+  createdAt             DateTime @default(now())
+  lastSeenAt            DateTime @default(now())
+
+  gamesAsX Game[] @relation("PlayerX")
+  gamesAsO Game[] @relation("PlayerO")
+  moves    Move[]
+}
+
+model Game {
+  id                    String        @id @default(uuid()) @db.Uuid
+  code                  String        @unique @db.VarChar(6)
+  mode                  GameMode
+  visibility            Visibility    @default(PRIVATE)
+  status                GameStatus    @default(WAITING)
+  difficulty            Difficulty?
+  board                 String        @default(".........") @db.VarChar(9)
+  turn                  Symbol        @default(X)
+  winner                Winner?
+  finishReason          FinishReason?
+  winningLine           Int[]         @default([])
+  playerXId             String        @db.Uuid
+  playerOId             String?       @db.Uuid
+  version               Int           @default(0)
+  turnDeadline          DateTime?
+  rematchRequestedByX   Boolean       @default(false)
+  rematchRequestedByO   Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  startedAt             DateTime?
+  finishedAt            DateTime?
+  playerX               Player        @relation("PlayerX", fields: [playerXId], references: [id], onDelete: Restrict)
+  playerO               Player?       @relation("PlayerO", fields: [playerOId], references: [id], onDelete: Restrict)
+  moves                 Move[]
+
+  @@index([visibility, status, mode, createdAt])
+  @@index([status, turnDeadline])
+  @@index([mode, status, finishedAt])
+  @@index([playerXId, createdAt])
+  @@index([playerOId, createdAt])
+}
+
+model Move {
+  id         String   @id @default(uuid()) @db.Uuid
+  gameId     String   @db.Uuid
+  playerId   String?  @db.Uuid
+  moveNumber Int
+  cell       Int
+  symbol     Symbol
+  createdAt  DateTime @default(now())
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player     Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([gameId, moveNumber])
+  @@index([playerId])
+}
+
+model AnalyticsGameCompleted {
+  gameId     String       @id @db.Uuid
+  mode       GameMode
+  winner     Winner?
+  finishedAt DateTime
+}

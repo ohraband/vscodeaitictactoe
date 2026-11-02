@@ -1,0 +1,88 @@
+// CHANGED (host-side, can't be set here): if you use the VS Code Dev Containers extension,
+// put these in your HOST user settings, otherwise it copies your ~/.gitconfig into the
+// container, proxies git credentials to the host, and forwards a running ssh-agent:
+//   "dev.containers.copyGitConfig": false,
+//   "dev.containers.gitCredentialHelperConfigLocation": "none"
+// Also don't keep an ssh-agent with loaded keys running while you use this container.
+// (The plain `devcontainer` CLI doesn't do any of this.)
+{
+  "name": "opencode sandbox",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:Europe/Prague}",
+      // CHANGED: "latest" is resolved to an exact version at build time and frozen in the
+      // image (see Dockerfile; installed version is in /etc/opencode-version).
+      // Optionally replace with an exact version like "1.2.3" to pin it yourself.
+      "OPENCODE_VERSION": "latest",
+      // Comma-separated. Names: anthropic openai opencode openrouter google groq cerebras
+      // mistral deepseek xai together zai github-models github-copilot
+      // CHANGED: dropped "google" by default. It's on shared Google IPs, so allowing it
+      // also opens a path to other Google services. Add it back if you need Gemini.
+      "PROVIDERS": "opencode,openrouter,anthropic",
+      "EXTRA_DOMAINS": "",
+      "ALLOW_GITHUB": "0"
+    }
+  },
+  "remoteUser": "node",
+  "containerUser": "node",
+
+  "runArgs": [
+    // CHANGED: drop everything, then add back only what the firewall script and sudo need.
+    // NET_ADMIN/NET_RAW are only usable through the sudo'd firewall script.
+    // (no-new-privileges can't be used here because it would break sudo.)
+    // Untested on your setup: if `sudo` errors out, add --cap-add=DAC_OVERRIDE.
+    "--cap-drop=ALL",
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW",
+    "--cap-add=SETUID",
+    "--cap-add=SETGID",
+    "--cap-add=AUDIT_WRITE",
+    "--pids-limit=2048",
+    "--memory=8g"
+  ],
+
+  // The project folder is bind-mounted read-write; no ~/.ssh, ~/.gitconfig, docker.sock or home dir.
+  // State lives in named volumes.
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    // CHANGED: read-only overlays on the files that execute on your HOST later
+    // (devcontainer rebuilds, git hooks, git config like core.fsmonitor).
+    // The source paths must exist. If the project isn't a git repo, delete the .git lines.
+    // Side effect: git inside the container can't change hooks or .git/config
+    // (e.g. `git config`, `git remote add`, `git branch --set-upstream-to`).
+    "source=${localWorkspaceFolder}/.devcontainer,target=/workspace/.devcontainer,type=bind,readonly",
+    "source=${localWorkspaceFolder}/.git/hooks,target=/workspace/.git/hooks,type=bind,readonly",
+    "source=${localWorkspaceFolder}/.git/config,target=/workspace/.git/config,type=bind,readonly",
+
+    "source=opencode-config-${devcontainerId},target=/home/node/.config/opencode,type=volume",
+    "source=opencode-data-${devcontainerId},target=/home/node/.local/share/opencode,type=volume",
+    "source=opencode-history-${devcontainerId},target=/commandhistory,type=volume"
+    
+  ],
+
+  "containerEnv": {
+    "OPENCODE_DISABLE_AUTOUPDATE": "true",
+    // CHANGED: stop opencode from uploading sessions to opencode.ai (which the firewall allows).
+    // This is a guard against accidents; the agent could still change its own config.
+    "OPENCODE_CONFIG_CONTENT": "{\"share\":\"disabled\"}",
+    "TZ": "${localEnv:TZ:Europe/Prague}"
+    // Prefer `opencode auth login` inside the container (stored in the volume).
+    // If you use env keys, use scoped, spend-limited keys and add only what you need, e.g.:
+    // "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+  },
+
+  // Applies the default-deny egress firewall on every start
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}

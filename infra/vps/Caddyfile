@@ -1,0 +1,17 @@
+# This file is mounted into the Caddy container by compose.prod.yaml.
+# TTT_DOMAIN is passed to the container by Docker Compose.
+# Caddy obtains and renews the TLS certificate automatically once DNS points here.
+{$TTT_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy app:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# Grafana stays on 127.0.0.1:3001. Reach it through an SSH tunnel, or add a
+# separate site block for it once its DNS name exists.

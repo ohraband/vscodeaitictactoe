@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/game-engine"
+    },
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./apps/server"
+    }
+  ]
+}

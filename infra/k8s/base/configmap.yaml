@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ttt-config
+  labels:
+    app.kubernetes.io/name: ttt
+data:
+  NODE_ENV: production
+  HOST: 0.0.0.0
+  PORT: '3000'
+  TURN_SECONDS: '60'
+  LOG_LEVEL: info
+  RATE_LIMIT_ENABLED: 'true'
+  # Keep false for plain HTTP. Set true when a TLS-terminating ingress is in front.
+  CSP_UPGRADE_INSECURE_REQUESTS: 'false'
+  # Keep false for plain HTTP. Set true when a TLS-terminating ingress is in front.
+  SESSION_COOKIE_SECURE: 'false'
