@@ -243,15 +243,12 @@ tar \
 scp /tmp/ttt.tar.gz user@VPS_IP:/tmp/
 ```
 
-(same folder 
-tar   --exclude=node_modules   --exclude=.git   --exclude=.devcontainer   --exclude=dist   --exclude='*/dist'   --exclude=coverage   --exclude=playwright-report   --exclude=test-results   --exclude=.env   -czf ./ttt.tar.gz .
+(same folder
+tar --exclude=node_modules --exclude=.git --exclude=.devcontainer --exclude=dist --exclude='*/dist' --exclude=coverage --exclude=playwright-report --exclude=test-results --exclude=.env -czf ./ttt.tar.gz .
 
 scp ttt.tar.gz user@VPS_IP:/tmp/
 
 )
-
-
-
 
 On the VPS:
 
@@ -269,6 +266,7 @@ docker compose -p ttt --env-file .env \
 Migrations run automatically before the app starts. Keep `.env` on the VPS; the update archive intentionally excludes it.
 
 ## Important
+
 - Do not use `down -v` later, because it also deletes Caddy’s certificates and the database.
 - `POSTGRES_PASSWORD` only applies when Postgres creates a new empty volume.
 - No git is needed anywhere in this flow.

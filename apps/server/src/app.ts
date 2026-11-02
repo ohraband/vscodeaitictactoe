@@ -12,10 +12,7 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
 } from 'fastify';
-import {
-  createAnalyticsPublisher,
-  type AnalyticsPublisher,
-} from './analytics/publisher.js';
+import { createAnalyticsPublisher, type AnalyticsPublisher } from './analytics/publisher.js';
 import type { ServerConfig } from './config.js';
 import { HttpError } from './errors.js';
 import { noopGamePublisher, type GamePublisher } from './game/publisher.js';
