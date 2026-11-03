@@ -43,6 +43,8 @@ export default defineConfig({
             DATABASE_URL: databaseUrl,
             SESSION_SECRET: process.env.SESSION_SECRET ?? 'e2e-session-secret-change-me-32-chars',
             TURN_SECONDS: process.env.TURN_SECONDS ?? '60',
+            SOCKET_PING_INTERVAL_MS: process.env.SOCKET_PING_INTERVAL_MS ?? '3000',
+            SOCKET_PING_TIMEOUT_MS: process.env.SOCKET_PING_TIMEOUT_MS ?? '3000',
             RATE_LIMIT_ENABLED: 'false',
           },
         },

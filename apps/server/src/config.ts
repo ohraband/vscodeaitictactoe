@@ -10,6 +10,8 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(32),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   TURN_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+  SOCKET_PING_INTERVAL_MS: z.coerce.number().int().min(1000).max(60_000).default(25_000),
+  SOCKET_PING_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(20_000),
   REDIS_URL: z.url().optional(),
   LOG_LEVEL: logLevelSchema.default('info'),
   RATE_LIMIT_ENABLED: z.stringbool().default(true),
@@ -40,6 +42,8 @@ export interface ServerConfig {
   sessionSecret: string;
   sessionTtlDays: number;
   turnSeconds: number;
+  socketPingIntervalMs: number;
+  socketPingTimeoutMs: number;
   redisUrl: string | null;
   logLevel: LogLevel;
   rateLimitEnabled: boolean;
@@ -83,6 +87,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     sessionSecret: parsed.SESSION_SECRET,
     sessionTtlDays: parsed.SESSION_TTL_DAYS,
     turnSeconds: parsed.TURN_SECONDS,
+    socketPingIntervalMs: parsed.SOCKET_PING_INTERVAL_MS,
+    socketPingTimeoutMs: parsed.SOCKET_PING_TIMEOUT_MS,
     redisUrl: parsed.REDIS_URL ?? null,
     logLevel: parsed.LOG_LEVEL,
     rateLimitEnabled: parsed.RATE_LIMIT_ENABLED,

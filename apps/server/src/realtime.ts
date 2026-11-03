@@ -399,6 +399,8 @@ export async function createRealtimeServer(
     path: '/socket.io',
     serveClient: false,
     maxHttpBufferSize: 16 * 1024,
+    pingInterval: options.config.socketPingIntervalMs,
+    pingTimeout: options.config.socketPingTimeoutMs,
   });
   let publisher: RedisClientType | null = null;
   let subscriber: RedisClientType | null = null;

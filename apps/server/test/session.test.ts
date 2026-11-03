@@ -18,6 +18,8 @@ const testConfig: ServerConfig = {
   sessionSecret: 'integration-test-secret-with-enough-length',
   sessionTtlDays: 30,
   turnSeconds: 60,
+  socketPingIntervalMs: 25_000,
+  socketPingTimeoutMs: 20_000,
   redisUrl: null,
   logLevel: 'silent',
   rateLimitEnabled: false,
