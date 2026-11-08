@@ -1,6 +1,6 @@
 # Tic-Tac-Toe
 
-Vibe coded to test out some AI agents.
+Vibe coded to test out some AI agents. \
 Image gallery at the end.
 
 
