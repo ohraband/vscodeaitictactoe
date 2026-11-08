@@ -1,10 +1,6 @@
 import { SOCKET_EVENTS, type CursorDot, type CursorLeave } from '@ttt/contracts';
 import { useEffect, useState } from 'react';
-import {
-  acquireCursorSocket,
-  releaseCursorSocket,
-  subscribeToCursors,
-} from './cursor-socket';
+import { acquireCursorSocket, releaseCursorSocket, subscribeToCursors } from './cursor-socket';
 
 const DOT_TTL_MS = 5_000;
 const MAX_DOTS = 64;

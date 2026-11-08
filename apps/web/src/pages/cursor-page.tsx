@@ -120,9 +120,9 @@ export function CursorPage() {
           Move to leave a dot
         </h1>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-          Positions travel through the game WebSocket, Kafka, and a dedicated consumer socket
-          before appearing here. Only the players in <span className="text-fg">{game.code}</span>{' '}
-          can see this room.
+          Positions travel through the game WebSocket, Kafka, and a dedicated consumer socket before
+          appearing here. Only the players in <span className="text-fg">{game.code}</span> can see
+          this room.
         </p>
       </div>
 

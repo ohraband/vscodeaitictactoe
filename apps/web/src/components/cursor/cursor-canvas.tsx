@@ -27,7 +27,10 @@ export function CursorCanvas({ dots }: { readonly dots: readonly CursorPoint[] }
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
 
-    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    if (
+      canvas.width !== Math.round(width * ratio) ||
+      canvas.height !== Math.round(height * ratio)
+    ) {
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
     }

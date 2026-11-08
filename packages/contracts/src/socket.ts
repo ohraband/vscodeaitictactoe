@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { ackErrorSchema } from './api.js';
-import type { CursorDot, CursorLeave, CursorMoveRequest, CursorSubscribeRequest } from './cursor.js';
+import type {
+  CursorDot,
+  CursorLeave,
+  CursorMoveRequest,
+  CursorSubscribeRequest,
+} from './cursor.js';
 import type {
   GamePresence,
   GameUpdate,
