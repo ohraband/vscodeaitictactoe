@@ -278,3 +278,44 @@ end-to-end cursor flow is manual.
 - `apps/server` — Fastify API, guest sessions, game domain, Socket.IO, cursor publisher/consumer, Prisma schema, health checks.
 - `apps/web` — React SPA for onboarding, gameplay, cursor rooms, history replay, and leaderboard.
 - `e2e` — Playwright flows across solo, multiplayer, rematch, reconnect, and history.
+
+## Screenshots
+
+### Web UI
+
+![Lobby](images/start.png)
+![Gameplay](images/game.png)
+![History](images/history.png)
+![Leaderboard](images/leaderboard.png)
+
+### Cursors over Kafka
+
+Live cursor positions are relayed through Kafka, from the game socket to the cursor consumer socket.
+
+![Cursor rooms](images/cursors.jpg)
+
+### Observability
+
+![Prometheus metric](images/prometeus.jpg)
+![Prometheus HTTP metrics](images/prometeus2.jpg)
+![Grafana dashboard](images/grafana.jpg)
+![Grafana dashboards list](images/grafana2.jpg)
+
+### Kubernetes
+
+![k9s pods](images/k9s.jpg)
+![k9s app logs](images/k9s2.jpg)
+![k9s Postgres logs](images/k9s3.jpg)
+
+### CI/CD
+
+![GitHub Actions runs](images/github_actions.jpg)
+![Playwright workflow](images/github_actions2.jpg)
+![CI workflow](images/github_actions3.jpg)
+
+### Database and Kafka analytics
+
+`psql_kafka` shows Kafka analytics of completed games (`AnalyticsGameCompleted`), which is separate from the cursor stream.
+
+![Database tables](images/psql.jpg)
+![Kafka analytics rows](images/psql_kafka.jpg)
