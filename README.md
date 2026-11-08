@@ -1,5 +1,9 @@
 # Tic-Tac-Toe
 
+Vibe coded to test out some AI agents.
+Image gallery at the end.
+
+
 An intentionally well-built tic-tac-toe platform: guest sessions, solo AI, realtime
 multiplayer, persisted games, replay, leaderboard, Docker, Kubernetes, and CI/CD.
 
