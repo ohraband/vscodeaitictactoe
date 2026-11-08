@@ -3,6 +3,7 @@ import { useMe } from './api/queries';
 import { AppShell } from './components/layout/app-shell';
 import { ErrorState } from './components/ui/states';
 import { Logo } from './components/ui/logo';
+import { CursorPage } from './pages/cursor-page';
 import { GamePage } from './pages/game-page';
 import { HistoryPage } from './pages/history-page';
 import { LeaderboardPage } from './pages/leaderboard-page';
@@ -50,6 +51,7 @@ export function App() {
       <Route element={<AppShell player={session.data} />}>
         <Route index element={<LobbyPage player={session.data} />} />
         <Route path="play/:gameId" element={<GamePage />} />
+        <Route path="play/:gameId/cursors" element={<CursorPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="history/:gameId" element={<ReplayPage />} />
         <Route path="leaderboard" element={<LeaderboardPage player={session.data} />} />

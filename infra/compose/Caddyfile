@@ -1,0 +1,27 @@
+# Local Compose gateway. The production overlay replaces this file with
+# infra/vps/Caddyfile and terminates TLS on ports 80/443.
+:3000 {
+	encode zstd gzip
+
+	# Keep the original Host header, including the port. Rewriting it with
+	# {host} drops :3000 and makes the app reject same-origin requests.
+	#
+	# The cursor consumer is optional. When the cursor profile is not running
+	# this route is only reached if the client requests it, and /api/config
+	# reports cursor sharing as disabled.
+	handle /cursor.io* {
+		reverse_proxy cursor-consumer:3001 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		reverse_proxy app:3000 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+}

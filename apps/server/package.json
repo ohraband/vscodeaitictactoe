@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
+    "dev:cursor": "tsx watch src/cursor/worker.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.test.json",
     "prisma:generate": "prisma generate",

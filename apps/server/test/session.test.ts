@@ -27,6 +27,7 @@ const testConfig: ServerConfig = {
   sessionCookieSecure: false,
   metricsReplicaId: 'test-replica',
   kafka: null,
+  cursor: null,
 };
 
 function getSetCookie(headers: Record<string, unknown>): string {

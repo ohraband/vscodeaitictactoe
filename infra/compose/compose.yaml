@@ -43,14 +43,23 @@ services:
       CSP_UPGRADE_INSECURE_REQUESTS: ${CSP_UPGRADE_INSECURE_REQUESTS:-false}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-}
+      CURSOR_ENABLED: ${CURSOR_ENABLED:-false}
     command:
       ['sh', '-c', 'pnpm --filter @ttt/server prisma:deploy && node apps/server/dist/index.js']
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      app:
+        condition: service_healthy
     ports:
       - '${APP_HOST_PORT:-3000}:3000'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
   redpanda:
     image: redpandadata/redpanda:v24.2.7
-    profiles: ['analytics']
+    profiles: ['analytics', 'cursor']
     command:
       - redpanda
       - start
@@ -79,13 +88,13 @@ services:
 
   redpanda-init:
     image: redpandadata/redpanda:v24.2.7
-    profiles: ['analytics']
+    profiles: ['analytics', 'cursor']
     depends_on:
       redpanda:
         condition: service_healthy
     entrypoint: ['/bin/sh', '-c']
     command:
-      - 'rpk topic create ttt.game.completed --brokers redpanda:9092 || true'
+      - 'rpk topic create ttt.game.completed --brokers redpanda:9092 || true; rpk topic create ttt.cursor.moved --brokers redpanda:9092 || true'
     restart: 'no'
 
   analytics-worker:
@@ -112,6 +121,34 @@ services:
       KAFKA_ANALYTICS_TOPIC: ttt.game.completed
       KAFKA_ANALYTICS_GROUP_ID: ttt-analytics
     command: ['node', 'apps/server/dist/analytics/worker.js']
+
+  cursor-consumer:
+    image: ttt:compose
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    profiles: ['cursor']
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://ttt:ttt@postgres:5432/ttt
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET to at least 32 characters}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-redpanda:9092}
+      KAFKA_CLIENT_ID: ttt-server
+      CURSOR_ENABLED: 'true'
+      CURSOR_PORT: '3001'
+      KAFKA_CURSOR_TOPIC: ttt.cursor.moved
+      KAFKA_CURSOR_GROUP_ID: ttt-cursor
+    command: ['node', 'apps/server/dist/cursor/worker.js']
 
   prometheus:
     image: prom/prometheus:v3.5.0

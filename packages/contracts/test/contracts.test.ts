@@ -4,8 +4,13 @@ import {
   SOCKET_EVENTS,
   analyticsGameCompletedSchema,
   apiErrorSchema,
+  appConfigResponseSchema,
   boardSchema,
   createGameRequestSchema,
+  cursorDotSchema,
+  cursorMoveEventSchema,
+  cursorMoveRequestSchema,
+  cursorSubscribeRequestSchema,
   difficultySchema,
   displayNameSchema,
   gameDetailSchema,
@@ -298,6 +303,57 @@ describe('queries and errors', () => {
     expect(SOCKET_EVENTS.GAME_MOVE).toBe('game:move');
     expect(SOCKET_EVENTS.GAME_UPDATE).toBe('game:update');
     expect(SOCKET_EVENTS.GAME_REMATCH_STARTED).toBe('game:rematch-started');
+    expect(SOCKET_EVENTS.CURSOR_MOVE).toBe('cursor:move');
+    expect(SOCKET_EVENTS.CURSOR_SUBSCRIBE).toBe('cursor:subscribe');
+    expect(SOCKET_EVENTS.CURSOR_DOT).toBe('cursor:dot');
+    expect(SOCKET_EVENTS.CURSOR_LEAVE).toBe('cursor:leave');
     expect(DEFAULT_LEADERBOARD_MINIMUM_GAMES).toBe(5);
+  });
+});
+
+describe('cursor contracts', () => {
+  const streamId = '44444444-4444-4444-8444-444444444444';
+  const move = {
+    gameId,
+    streamId,
+    x: 0.25,
+    y: 0.75,
+    seq: 1,
+    sentAt: '2026-10-24T10:00:00.000Z',
+  };
+
+  it('accepts normalized coordinates inside the stage', () => {
+    expect(cursorSubscribeRequestSchema.parse({ gameId })).toEqual({ gameId });
+    expect(cursorMoveRequestSchema.parse(move)).toEqual(move);
+    expect(cursorMoveEventSchema.parse({ ...move, playerId: playerX.id })).toMatchObject({
+      playerId: playerX.id,
+      x: 0.25,
+      y: 0.75,
+    });
+  });
+
+  it('rejects out-of-range coordinates, negative sequence numbers, and bad ids', () => {
+    expect(cursorMoveRequestSchema.safeParse({ ...move, x: -0.01 }).success).toBe(false);
+    expect(cursorMoveRequestSchema.safeParse({ ...move, y: 1.01 }).success).toBe(false);
+    expect(cursorMoveRequestSchema.safeParse({ ...move, seq: -1 }).success).toBe(false);
+    expect(cursorMoveRequestSchema.safeParse({ ...move, seq: 1.5 }).success).toBe(false);
+    expect(cursorMoveRequestSchema.safeParse({ ...move, streamId: 'nope' }).success).toBe(false);
+    expect(cursorMoveRequestSchema.safeParse({ ...move, sentAt: 'yesterday' }).success).toBe(false);
+  });
+
+  it('validates cursor dots and config responses', () => {
+    expect(
+      cursorDotSchema.parse({
+        ...move,
+        playerId: playerX.id,
+        emittedAt: '2026-10-24T10:00:00.050Z',
+      }),
+    ).toMatchObject({ emittedAt: '2026-10-24T10:00:00.050Z' });
+    expect(
+      appConfigResponseSchema.parse({ cursor: { enabled: true, path: '/cursor.io' } }),
+    ).toEqual({ cursor: { enabled: true, path: '/cursor.io' } });
+    expect(appConfigResponseSchema.safeParse({ cursor: { enabled: true, path: '' } }).success).toBe(
+      false,
+    );
   });
 });

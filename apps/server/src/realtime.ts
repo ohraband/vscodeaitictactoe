@@ -3,6 +3,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import type { PrismaClient } from '@prisma/client';
 import {
   SOCKET_EVENTS,
+  cursorMoveRequestSchema,
   leaveGameRequestSchema,
   moveRequestSchema,
   rematchRequestSchema,
@@ -17,19 +18,22 @@ import type { FastifyBaseLogger } from 'fastify';
 import { createClient, type RedisClientType } from 'redis';
 import { Server, type DefaultEventsMap, type Socket } from 'socket.io';
 import type { ServerConfig } from './config.js';
+import { noopCursorPublisher, type CursorPublisher } from './cursor/publisher.js';
 import { HttpError } from './errors.js';
 import type { GamePublisher } from './game/publisher.js';
 import type { GameService } from './game/service.js';
 import type { Metrics } from './metrics.js';
-import { ActionWindow } from './rate-limit.js';
-import { originHost } from './security.js';
-import { SESSION_COOKIE_NAME, verifySessionToken } from './session-token.js';
+import { ActionWindow, SOCKET_ACTION_LIMIT_WINDOW_MS } from './rate-limit.js';
+import { isAllowedHandshakeOrigin, sessionPlayerId } from './socket-auth.js';
 import { parseInput } from './validation.js';
+
+export const SOCKET_CURSOR_LIMIT_MAX = 250;
 
 interface SocketData {
   playerId: string;
   games: Record<string, readonly string[]>;
   actionWindow: ActionWindow;
+  cursorWindow: ActionWindow;
 }
 
 type RealtimeIo = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -48,6 +52,7 @@ export interface RealtimeServerOptions {
   readonly gameService: GameService;
   readonly logger: FastifyBaseLogger;
   readonly metrics?: Metrics;
+  readonly cursorPublisher?: CursorPublisher;
 }
 
 export type RealtimeServerFactory = (options: RealtimeServerOptions) => Promise<RealtimeServer>;
@@ -58,28 +63,6 @@ function gameRoom(gameId: string): string {
 
 function participantIds(game: GameSnapshot): readonly string[] {
   return game.playerO ? [game.playerX.id, game.playerO.id] : [game.playerX.id];
-}
-
-function readCookie(header: string | undefined, name: string): string | null {
-  if (!header) return null;
-
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=');
-
-    if (separator === -1 || part.slice(0, separator).trim() !== name) {
-      continue;
-    }
-
-    const value = part.slice(separator + 1).trim();
-
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  }
-
-  return null;
 }
 
 function closeIo(io: RealtimeIo): Promise<void> {
@@ -95,6 +78,7 @@ export class RealtimeServer implements GamePublisher {
   private readonly gameService: GameService;
   private readonly logger: FastifyBaseLogger;
   private readonly metrics: Metrics | undefined;
+  private readonly cursorPublisher: CursorPublisher;
   private readonly publisher: RedisClientType | null;
   private readonly subscriber: RedisClientType | null;
   private closed = false;
@@ -107,6 +91,7 @@ export class RealtimeServer implements GamePublisher {
       readonly gameService: GameService;
       readonly logger: FastifyBaseLogger;
       readonly metrics?: Metrics;
+      readonly cursorPublisher?: CursorPublisher;
       readonly publisher: RedisClientType | null;
       readonly subscriber: RedisClientType | null;
     },
@@ -117,6 +102,7 @@ export class RealtimeServer implements GamePublisher {
     this.gameService = options.gameService;
     this.logger = options.logger;
     this.metrics = options.metrics;
+    this.cursorPublisher = options.cursorPublisher ?? noopCursorPublisher;
     this.publisher = options.publisher;
     this.subscriber = options.subscriber;
 
@@ -180,24 +166,24 @@ export class RealtimeServer implements GamePublisher {
 
   private installHandshake(): void {
     this.io.use(async (socket, next) => {
-      const origin = socket.handshake.headers.origin;
-      const host = socket.handshake.headers.host?.toLowerCase();
-
-      if (origin && (!host || originHost(origin) !== host)) {
+      if (!isAllowedHandshakeOrigin(socket.handshake.headers)) {
         this.logger.warn(
-          { socketId: socket.id, origin, host },
+          {
+            socketId: socket.id,
+            origin: socket.handshake.headers.origin,
+            host: socket.handshake.headers.host,
+          },
           'socket handshake rejected: origin mismatch',
         );
         next(new Error('FORBIDDEN'));
         return;
       }
 
-      const token = readCookie(socket.handshake.headers.cookie, SESSION_COOKIE_NAME);
-      const playerId = token ? verifySessionToken(token, this.config.sessionSecret) : null;
+      const playerId = sessionPlayerId(socket.handshake.headers, this.config.sessionSecret);
 
       if (!playerId) {
         this.logger.warn(
-          { socketId: socket.id, hasCookie: Boolean(token) },
+          { socketId: socket.id, hasCookie: Boolean(socket.handshake.headers.cookie) },
           'socket handshake rejected: invalid session',
         );
         next(new Error('UNAUTHORIZED'));
@@ -218,6 +204,10 @@ export class RealtimeServer implements GamePublisher {
         socket.data.playerId = player.id;
         socket.data.games = {};
         socket.data.actionWindow = new ActionWindow();
+        socket.data.cursorWindow = new ActionWindow(
+          SOCKET_CURSOR_LIMIT_MAX,
+          SOCKET_ACTION_LIMIT_WINDOW_MS,
+        );
         next();
       } catch (error) {
         this.logger.error({ err: error, socketId: socket.id }, 'socket authentication failed');
@@ -286,6 +276,10 @@ export class RealtimeServer implements GamePublisher {
         });
       });
 
+      socket.on(SOCKET_EVENTS.CURSOR_MOVE, (request) => {
+        this.handleCursorMove(socket, request);
+      });
+
       socket.on('disconnect', (reason) => {
         this.metrics?.activeSockets.dec();
         this.logger.info({ socketId: socket.id, playerId, reason }, 'socket disconnected');
@@ -294,6 +288,25 @@ export class RealtimeServer implements GamePublisher {
 
         void this.publishDisconnectPresence(socket);
       });
+    });
+  }
+
+  private handleCursorMove(socket: RealtimeSocket, request: unknown): void {
+    if (!socket.data.cursorWindow.allow()) {
+      this.metrics?.cursorDropped.inc();
+      return;
+    }
+
+    const parsed = cursorMoveRequestSchema.safeParse(request);
+
+    if (!parsed.success || !(parsed.data.gameId in socket.data.games)) {
+      this.metrics?.cursorDropped.inc();
+      return;
+    }
+
+    this.cursorPublisher.publishMove({
+      ...parsed.data,
+      playerId: socket.data.playerId,
     });
   }
 
@@ -432,6 +445,7 @@ export async function createRealtimeServer(
     gameService: options.gameService,
     logger: options.logger,
     ...(options.metrics ? { metrics: options.metrics } : {}),
+    ...(options.cursorPublisher ? { cursorPublisher: options.cursorPublisher } : {}),
     publisher,
     subscriber,
   });

@@ -20,7 +20,9 @@ migration Job, and a CI render check); a real kind deploy is still pending becau
 environment has no Docker or Kubernetes tooling. Milestone 9 adds GitHub Actions container
 publication to GHCR from `main` and `v*` tags; it does not include a deploy workflow.
 Milestone 10 adds the optional Redpanda/Kafka analytics pipeline and the local
-Prometheus/Grafana observability profile.
+Prometheus/Grafana observability profile. An optional Kafka cursor stream shares live pointer
+positions between multiplayer participants; it is disabled by default and never affects
+gameplay.
 
 ## Commands
 
@@ -31,17 +33,20 @@ pnpm test:coverage
 pnpm build
 ```
 
+When cursor streaming is enabled locally, run the separate consumer with `pnpm dev:cursor`.
+
 ## Run with Docker Compose
 
 The image builds the server and web UI, then serves both from one container. Compose starts
-Postgres 17, Redis 7, and the app:
+Postgres 17, Redis 7, the app, and a small Caddy gateway on port 3000:
 
 ```sh
 export SESSION_SECRET="$(openssl rand -hex 32)"
 docker compose -f infra/compose/compose.yaml up --build
 ```
 
-The app listens at `http://localhost:3000`; migrations are applied before the server starts.
+The gateway serves the app at `http://localhost:3000`; migrations are applied before the
+server starts.
 
 ### Optional observability profile
 
@@ -69,11 +74,34 @@ The worker consumes `ttt.game.completed` and idempotently inserts rows into
 `AnalyticsGameCompleted`. Leaving `KAFKA_BROKERS` unset disables analytics without affecting
 gameplay.
 
+### Optional cursor profile
+
+The cursor profile starts Redpanda, creates `ttt.cursor.moved`, runs a separate cursor
+consumer, and enables publishing from the app. The consumer serves a second Socket.IO
+endpoint at `/cursor.io`; the Compose Caddy gateway proxies that path to it, so the browser
+still uses one origin:
+
+```sh
+docker compose -f infra/compose/compose.yaml \
+  -f infra/compose/compose.cursor.yaml \
+  --profile cursor up --build
+```
+
+Open a multiplayer game and select **Cursors**. Position updates travel over the existing game
+socket, through Kafka, and back to participants through the cursor consumer. Dots expire after
+5 seconds without movement. With the profile off, `/api/config` reports cursor sharing as
+disabled and the rest of the app behaves exactly as before.
+
+The cursor consumer is internal-only; Caddy reaches it at `cursor-consumer:3001`. Use
+`CURSOR_ENABLED=true` and `KAFKA_BROKERS=<brokers>` when running the app outside Compose.
+The cursor worker has its own `/health/live`, `/health/ready`, and `/metrics` endpoints on
+`CURSOR_PORT` (default `3001`).
+
 ## Deploy on a VPS
 
 The non-Kubernetes deployment path uses Compose with a bundled Caddy container. The
-production overlay starts Caddy on ports 80/443, requires the public hostname plus database
-and Grafana passwords, and keeps the app on loopback. See
+production overlay reconfigures Caddy for ports 80/443, requires the public hostname plus
+database and Grafana passwords, and keeps the app and cursor consumer off host ports. See
 [infra/vps/README.md](infra/vps/README.md) for the full scp deployment, DNS, TLS, firewall,
 verification, update, and password-rotation runbook.
 
@@ -200,6 +228,19 @@ limits are per replica. Set `RATE_LIMIT_ENABLED=false` only for controlled test 
 served over HTTPS; the Docker Compose stack leaves both off for plain-HTTP
 `http://localhost:3000`, and the VPS overlay turns them on for Caddy.
 
+For local cursor development, start Redpanda and the topic, then run the app/web and the
+consumer in separate shells:
+
+```sh
+docker compose -f infra/compose/compose.yaml --profile cursor up -d redpanda redpanda-init
+
+# Shell 1: app + Vite, with cursor publishing enabled.
+CURSOR_ENABLED=true KAFKA_BROKERS=localhost:9092 pnpm dev
+
+# Shell 2: Kafka -> /cursor.io consumer. Vite proxies /cursor.io to port 3001.
+CURSOR_ENABLED=true KAFKA_BROKERS=localhost:9092 pnpm dev:cursor
+```
+
 Every metrics scrape includes a `replica` label (`METRICS_REPLICA_ID`, defaulting to the
 hostname). In multi-replica deployments, scrape every pod with Prometheus and aggregate
 across that label; the app does not need a separate metrics collector.
@@ -226,12 +267,14 @@ DATABASE_URL=postgresql://ttt:ttt@localhost:5432/ttt pnpm test:e2e
 
 It covers onboarding and rename, solo play, private rooms, quick match, rematch, reconnect,
 history filters and replay, leaderboard, access control, and axe accessibility checks. CI runs
-the unit and integration suites; E2E remains local for now.
+the unit and integration suites; E2E remains local for now. Cursor publisher, ingest, realtime
+authorization, and cursor socket tests run in the unit/integration suite; the broker-backed
+end-to-end cursor flow is manual.
 
 ## Workspace
 
 - `packages/game-engine` — pure rules, win detection, and minimax AI.
 - `packages/contracts` — shared Zod schemas and API/socket types.
-- `apps/server` — Fastify API, guest sessions, game domain, Socket.IO, Prisma schema, health checks.
-- `apps/web` — React SPA for onboarding, gameplay, history replay, and leaderboard.
+- `apps/server` — Fastify API, guest sessions, game domain, Socket.IO, cursor publisher/consumer, Prisma schema, health checks.
+- `apps/web` — React SPA for onboarding, gameplay, cursor rooms, history replay, and leaderboard.
 - `e2e` — Playwright flows across solo, multiplayer, rematch, reconnect, and history.

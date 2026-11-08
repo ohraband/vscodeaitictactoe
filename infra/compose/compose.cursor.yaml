@@ -1,0 +1,8 @@
+# Overlay for the optional Kafka cursor stream. Use with:
+#   docker compose -f infra/compose/compose.yaml \
+#     -f infra/compose/compose.cursor.yaml --profile cursor up --build
+services:
+  app:
+    environment:
+      CURSOR_ENABLED: 'true'
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-redpanda:9092}

@@ -1,12 +1,14 @@
 # Docker Compose
 
-The default Compose stack runs Postgres 17, Redis 7, and the app. The app image contains
-both the API and the built SPA, so one container serves everything at `http://localhost:3000`.
-Migrations are applied before the server starts.
+The default Compose stack runs Postgres 17, Redis 7, the app, and a Caddy gateway. The app
+image contains both the API and the built SPA; Caddy serves it at `http://localhost:3000`
+and proxies `/cursor.io` to the optional cursor consumer. Migrations are applied before the
+server starts.
 
-The production/VPS path layers `compose.prod.yaml` on top. That overlay adds a Caddy
-container that owns ports 80/443 and proxies to `app:3000`, keeps the app on loopback, and
-requires `TTT_DOMAIN`, `POSTGRES_PASSWORD`, and `GRAFANA_ADMIN_PASSWORD`. See
+The production/VPS path layers `compose.prod.yaml` on top. That overlay reconfigures the
+Caddy service to own ports 80/443, proxy to `app:3000` and `/cursor.io`, keeps the app and
+cursor consumer off host ports, and requires `TTT_DOMAIN`, `POSTGRES_PASSWORD`, and
+`GRAFANA_ADMIN_PASSWORD`. See
 [../vps/README.md](../vps/README.md) for the deployment runbook.
 
 ## Run locally
@@ -68,6 +70,18 @@ KAFKA_BROKERS=redpanda:9092 \
   docker compose -f infra/compose/compose.yaml --profile analytics up --build
 ```
 
+To enable the optional Kafka cursor stream, add the cursor overlay so the app also publishes
+to `ttt.cursor.moved`:
+
+```sh
+docker compose -f infra/compose/compose.yaml \
+  -f infra/compose/compose.cursor.yaml \
+  --profile cursor up --build
+```
+
+The gateway proxies `/cursor.io` to `cursor-consumer:3001`; the consumer is not published on
+a host port. Grafana keeps host port 3001.
+
 ## Windows + WSL2: localhost does not reach the container
 
 If the app is healthy inside WSL but the Windows browser cannot connect, separate Docker
@@ -77,10 +91,10 @@ from WSL port forwarding:
 # In WSL: both should work.
 curl -v --max-time 5 http://127.0.0.1:3000/
 curl -v --max-time 5 "http://$(hostname -I | awk '{print $1}'):3000/"
-docker compose -f infra/compose/compose.yaml port app 3000
+docker compose -f infra/compose/compose.yaml port caddy 3000
 ```
 
-`port app 3000` must report a listener, usually `0.0.0.0:3000` and/or `[::]:3000`. If WSL
+`port caddy 3000` must report a listener, usually `0.0.0.0:3000` and/or `[::]:3000`. If WSL
 curl works but Windows does not, the app and Docker are fine; WSL localhost forwarding is the
 problem. In PowerShell:
 
@@ -150,7 +164,7 @@ sudo systemctl restart docker
 docker compose -f infra/compose/compose.yaml up -d --force-recreate
 ```
 
-The local stack publishes the app on every interface, over both IPv4 and IPv6, using the
-unqualified `3000:3000` mapping; that is what makes `localhost` work when it resolves to
-`::1`. `APP_BIND_ADDRESS` is only applied by `compose.prod.yaml`, where it keeps the app on
-`127.0.0.1` behind Caddy. Do not set it for local WSL use.
+The local stack publishes the Caddy gateway on every interface, over both IPv4 and IPv6,
+using the unqualified `${APP_HOST_PORT:-3000}:3000` mapping; that is what makes `localhost`
+work when it resolves to `::1`. The app and cursor consumer stay on the Compose network and
+are reached only through Caddy.

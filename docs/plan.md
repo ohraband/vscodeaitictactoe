@@ -24,7 +24,7 @@ Milestone 10's optional analytics and observability profiles are in place.
 - Guest-only identity via signed httpOnly cookie; no passwords or OAuth.
 - One Docker image serving the SPA, REST API, and WebSockets.
 - Kustomize + GitHub Actions + GHCR. No Helm, Argo CD, Terraform, or service mesh.
-- Kafka/Redpanda is an optional analytics pipe only; never in the gameplay path.
+- Kafka/Redpanda is an optional analytics and cursor-telemetry pipe; never in the gameplay path.
 
 ## Scope
 
@@ -36,7 +36,7 @@ Milestone 10's optional analytics and observability profiles are in place.
 - Match history with replay, multiplayer leaderboard.
 - Polished responsive UI, keyboard support, reduced-motion support.
 - Structured logs, metrics, health checks.
-- Docker Compose, Kubernetes manifests, CI/CD, optional Kafka analytics.
+- Docker Compose, Kubernetes manifests, CI/CD, optional Kafka analytics and cursor telemetry.
 
 ### Explicitly out
 
@@ -59,10 +59,11 @@ Fastify + Socket.IO
   |-- Redis: Socket.IO adapter + ephemeral presence + shared rate limits
   |-- shared game engine: rules + minimax (server authoritative)
   |-- Pino / Prometheus
-  |-- optional Kafka publisher
+  |-- optional Kafka publishers (analytics + cursor)
           |
           v
    Redpanda/Kafka -> analytics worker -> analytics table
+                  -> cursor consumer -> /cursor.io socket -> cursor canvas
 ```
 
 Why this shape:
@@ -314,21 +315,35 @@ measurements justify it.
   guaranteed analytics delivery becomes a requirement.
 - Kafka is not used for moves, matchmaking, or the leaderboard.
 
+## Optional Kafka cursor telemetry
+
+- Disabled by default. The `cursor` Compose profile starts Redpanda, creates
+  `ttt.cursor.moved`, runs a separate consumer entrypoint, and enables publishing from the app.
+- Browser pointer positions are normalized to the 0–1 range, throttled, and sent over the
+  existing game socket. The server accepts them only from participants subscribed to the game,
+  applies a dedicated socket rate limit, and coalesces per player before publishing.
+- The consumer deduplicates by stream sequence number and emits dots over a separate Socket.IO
+  server at `/cursor.io` on `CURSOR_PORT`. A Caddy gateway keeps the browser on one origin.
+- Dots are best-effort and expire client-side after five seconds without movement. Cursor data
+  is never authoritative and never touches game state.
+- Publisher and consumer failures are logged and counted in metrics without affecting
+  gameplay. With the profile off, `/api/config` reports cursor sharing as disabled.
+
 ## Milestones
 
-| Phase | Deliverable                                                                     | Done when                                             |
-| ----- | ------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| 0     | Workspace scaffold, TypeScript, lint, test runner, CI quality job               | `lint`, `typecheck`, `test`, `build` pass             |
-| 1     | Shared contracts + game engine + AI                                             | Exhaustive engine tests; hard AI never loses          |
-| 2     | Fastify foundation, Prisma schema, guest sessions, health, logging              | Session/rename tests pass; migrations apply           |
-| 3     | Game domain + REST: create/join/quick match, moves, timer, history, leaderboard | Integration tests cover conflicts and races           |
-| 4     | Socket.IO realtime, Redis adapter, reconnect, rematch, presence                 | Two-client socket tests pass                          |
-| 5     | Polished web UI and replay                                                      | E2E solo + multiplayer flows pass                     |
-| 6     | Hardening: rate limits, security headers, metrics, graceful shutdown, OpenAPI   | Security/observability checklist passes               |
-| 7     | Docker + Compose + optional profiles                                            | Full stack starts and health passes                   |
-| 8     | Kubernetes base + overlays                                                      | `kustomize build` clean; kind/k3d deploy works        |
-| 9     | Full CI/CD, GHCR, deploy workflow, docs/ADRs/runbook                            | Green pipeline; deployment runbook complete           |
-| 10    | Optional Kafka analytics profile                                                | Idempotent consumer test; core works with it disabled |
+| Phase | Deliverable                                                                     | Done when                                          |
+| ----- | ------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 0     | Workspace scaffold, TypeScript, lint, test runner, CI quality job               | `lint`, `typecheck`, `test`, `build` pass          |
+| 1     | Shared contracts + game engine + AI                                             | Exhaustive engine tests; hard AI never loses       |
+| 2     | Fastify foundation, Prisma schema, guest sessions, health, logging              | Session/rename tests pass; migrations apply        |
+| 3     | Game domain + REST: create/join/quick match, moves, timer, history, leaderboard | Integration tests cover conflicts and races        |
+| 4     | Socket.IO realtime, Redis adapter, reconnect, rematch, presence                 | Two-client socket tests pass                       |
+| 5     | Polished web UI and replay                                                      | E2E solo + multiplayer flows pass                  |
+| 6     | Hardening: rate limits, security headers, metrics, graceful shutdown, OpenAPI   | Security/observability checklist passes            |
+| 7     | Docker + Compose + optional profiles                                            | Full stack starts and health passes                |
+| 8     | Kubernetes base + overlays                                                      | `kustomize build` clean; kind/k3d deploy works     |
+| 9     | Full CI/CD, GHCR, deploy workflow, docs/ADRs/runbook                            | Green pipeline; deployment runbook complete        |
+| 10    | Optional Kafka analytics and cursor profiles                                    | Consumer tests pass; core works with both disabled |
 
 ## Definition of done
 
@@ -339,7 +354,8 @@ measurements justify it.
 - Logs and metrics provide enough context to debug a failed game.
 - Compose stack passes health checks; Kustomize renders; CI is green; deployment is
   documented.
-- Kafka-disabled startup is identical to v1; enabling analytics does not change gameplay.
+- Kafka-disabled startup is identical to v1; enabling analytics or cursor telemetry does not
+  change gameplay.
 
 ## Assumptions and risks
 

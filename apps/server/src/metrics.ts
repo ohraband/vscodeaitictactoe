@@ -9,6 +9,10 @@ export interface Metrics {
   readonly moves: Counter<'mode'>;
   readonly staleConflicts: Counter;
   readonly aiDuration: Histogram<'difficulty'>;
+  readonly cursorPublished: Counter;
+  readonly cursorConsumed: Counter;
+  readonly cursorDropped: Counter;
+  readonly cursorLatency: Histogram;
 }
 
 export function createMetrics(replicaId: string): Metrics {
@@ -59,6 +63,27 @@ export function createMetrics(replicaId: string): Metrics {
       help: 'Time spent choosing a computer move.',
       labelNames: ['difficulty'],
       buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5],
+      registers: [registry],
+    }),
+    cursorPublished: new Counter({
+      name: 'ttt_cursor_published_total',
+      help: 'Cursor positions published to Kafka.',
+      registers: [registry],
+    }),
+    cursorConsumed: new Counter({
+      name: 'ttt_cursor_consumed_total',
+      help: 'Cursor positions consumed from Kafka.',
+      registers: [registry],
+    }),
+    cursorDropped: new Counter({
+      name: 'ttt_cursor_dropped_total',
+      help: 'Cursor positions dropped due to backpressure or validation.',
+      registers: [registry],
+    }),
+    cursorLatency: new Histogram({
+      name: 'ttt_cursor_delivery_latency_seconds',
+      help: 'Time from cursor capture to Kafka consumption.',
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
       registers: [registry],
     }),
   };

@@ -1,6 +1,6 @@
 import type { Cell } from '@ttt/game-engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Keyboard, Radio } from 'lucide-react';
+import { ArrowLeft, Keyboard, MousePointer2, Radio } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
@@ -294,6 +294,15 @@ export function GamePage() {
                 : 'Private room'}
           </span>
           {!isSingle && game.status !== 'waiting' ? <RoomCode code={game.code} compact /> : null}
+          {!isSingle ? (
+            <Link
+              to={`/play/${game.id}/cursors`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel/60 px-2.5 py-1 text-[0.68rem] font-semibold text-muted transition hover:border-line-strong hover:text-fg"
+            >
+              <MousePointer2 className="size-3" />
+              Cursors
+            </Link>
+          ) : null}
           <span
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[0.68rem] font-semibold ${
               game.status === 'active'

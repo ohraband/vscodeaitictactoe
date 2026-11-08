@@ -1,3 +1,4 @@
+import { CURSOR_SOCKET_PATH } from '@ttt/contracts';
 import { z } from 'zod';
 
 const logLevelSchema = z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']);
@@ -22,6 +23,10 @@ const envSchema = z.object({
   KAFKA_CLIENT_ID: z.string().min(1).default('ttt-server'),
   KAFKA_ANALYTICS_TOPIC: z.string().min(1).default('ttt.game.completed'),
   KAFKA_ANALYTICS_GROUP_ID: z.string().min(1).default('ttt-analytics'),
+  CURSOR_ENABLED: z.stringbool().default(false),
+  CURSOR_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+  KAFKA_CURSOR_TOPIC: z.string().min(1).default('ttt.cursor.moved'),
+  KAFKA_CURSOR_GROUP_ID: z.string().min(1).default('ttt-cursor'),
 });
 
 export type LogLevel = z.infer<typeof logLevelSchema>;
@@ -31,6 +36,15 @@ export interface KafkaConfig {
   readonly clientId: string;
   readonly topic: string;
   readonly groupId: string;
+}
+
+export interface CursorConfig {
+  readonly brokers: string[];
+  readonly clientId: string;
+  readonly topic: string;
+  readonly groupId: string;
+  readonly port: number;
+  readonly path: string;
 }
 
 export interface ServerConfig {
@@ -51,6 +65,7 @@ export interface ServerConfig {
   sessionCookieSecure: boolean;
   metricsReplicaId: string;
   kafka: KafkaConfig | null;
+  cursor: CursorConfig | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -77,6 +92,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
           topic: parsed.KAFKA_ANALYTICS_TOPIC,
           groupId: parsed.KAFKA_ANALYTICS_GROUP_ID,
         };
+  const cursor: CursorConfig | null =
+    parsed.CURSOR_ENABLED && brokers.length > 0
+      ? {
+          brokers,
+          clientId: `${parsed.KAFKA_CLIENT_ID}-cursor`,
+          topic: parsed.KAFKA_CURSOR_TOPIC,
+          groupId: parsed.KAFKA_CURSOR_GROUP_ID,
+          port: parsed.CURSOR_PORT,
+          path: CURSOR_SOCKET_PATH,
+        }
+      : null;
 
   return {
     nodeEnv: parsed.NODE_ENV,
@@ -96,5 +122,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     sessionCookieSecure: parsed.SESSION_COOKIE_SECURE ?? parsed.NODE_ENV === 'production',
     metricsReplicaId: parsed.METRICS_REPLICA_ID ?? env.HOSTNAME ?? 'local',
     kafka,
+    cursor,
   };
 }

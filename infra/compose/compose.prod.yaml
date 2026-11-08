@@ -4,13 +4,13 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    ports:
+    ports: !override
       - '80:80'
       - '443:443'
       - '443:443/udp'
     environment:
       TTT_DOMAIN: ${TTT_DOMAIN:?set TTT_DOMAIN}
-    volumes:
+    volumes: !override
       - ../vps/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
@@ -20,14 +20,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
 
   app:
-    ports: !override
-      - '${APP_BIND_ADDRESS:-127.0.0.1}:${APP_HOST_PORT:-3000}:3000'
     environment:
       DATABASE_URL: postgresql://ttt:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/ttt
       CSP_UPGRADE_INSECURE_REQUESTS: ${CSP_UPGRADE_INSECURE_REQUESTS:-true}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
 
   analytics-worker:
+    environment:
+      DATABASE_URL: postgresql://ttt:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/ttt
+
+  cursor-consumer:
     environment:
       DATABASE_URL: postgresql://ttt:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/ttt
 

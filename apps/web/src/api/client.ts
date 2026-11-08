@@ -1,10 +1,12 @@
 import {
   apiErrorSchema,
+  appConfigResponseSchema,
   gameDetailResponseSchema,
   gameListResponseSchema,
   gameResponseSchema,
   leaderboardResponseSchema,
   sessionResponseSchema,
+  type AppConfigResponse,
   type CreateGameRequest,
   type ErrorCode,
   type GameDetailResponse,
@@ -118,6 +120,10 @@ function gameListQuery(filters: GameListFilters): string {
 }
 
 export const api = {
+  getConfig(): Promise<AppConfigResponse> {
+    return request('/api/config', appConfigResponseSchema);
+  },
+
   async me(): Promise<PublicPlayer | null> {
     try {
       const response = await request<SessionResponse>('/api/me', sessionResponseSchema);

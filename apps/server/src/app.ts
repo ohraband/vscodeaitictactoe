@@ -6,7 +6,7 @@ import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import type { PrismaClient } from '@prisma/client';
-import type { ApiError } from '@ttt/contracts';
+import { CURSOR_SOCKET_PATH, type ApiError } from '@ttt/contracts';
 import Fastify, {
   type FastifyError,
   type FastifyInstance,
@@ -14,6 +14,7 @@ import Fastify, {
 } from 'fastify';
 import { createAnalyticsPublisher, type AnalyticsPublisher } from './analytics/publisher.js';
 import type { ServerConfig } from './config.js';
+import { createCursorPublisher, type CursorPublisher } from './cursor/publisher.js';
 import { HttpError } from './errors.js';
 import { noopGamePublisher, type GamePublisher } from './game/publisher.js';
 import { createGameService } from './game/service.js';
@@ -32,6 +33,7 @@ export interface AppDependencies {
   prisma: PrismaClient;
   realtimeFactory?: RealtimeServerFactory;
   analyticsPublisher?: AnalyticsPublisher;
+  cursorPublisher?: CursorPublisher;
 }
 
 export interface AppLifecycle {
@@ -85,6 +87,7 @@ export async function buildApp({
   prisma,
   realtimeFactory,
   analyticsPublisher,
+  cursorPublisher,
 }: AppDependencies): Promise<FastifyInstance> {
   const webDistDir = fileURLToPath(new URL('../../web/dist/', import.meta.url));
   const serveWeb = existsSync(webDistDir);
@@ -100,12 +103,19 @@ export async function buildApp({
   const lifecycle: AppLifecycle = { shuttingDown: false };
   const analytics =
     analyticsPublisher ?? createAnalyticsPublisher({ kafka: config.kafka, logger: app.log });
+  const cursors =
+    cursorPublisher ??
+    createCursorPublisher({
+      cursor: config.cursor,
+      logger: app.log,
+      ...(metrics ? { metrics } : {}),
+    });
 
   app.decorate('metrics', metrics);
   app.decorate('lifecycle', lifecycle);
   app.decorate('analytics', analytics);
   app.addHook('onClose', async () => {
-    await analytics.close();
+    await Promise.allSettled([analytics.close(), cursors.close()]);
   });
 
   await app.register(cookie);
@@ -116,6 +126,13 @@ export async function buildApp({
   }
 
   await registerRateLimit(app, config);
+
+  app.get('/api/config', async () => ({
+    cursor: {
+      enabled: Boolean(config.cursor),
+      path: config.cursor?.path ?? CURSOR_SOCKET_PATH,
+    },
+  }));
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-request-id', request.id);
@@ -215,6 +232,7 @@ export async function buildApp({
       gameService,
       logger: app.log,
       metrics,
+      cursorPublisher: cursors,
     });
 
     realtime = server;

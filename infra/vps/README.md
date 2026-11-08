@@ -24,11 +24,7 @@ If Caddy is instead a host service:
 sudo systemctl disable --now caddy
 ```
 
-Also make sure port 3000 is free on loopback:
-
-```sh
-sudo ss -ltnp | grep ':3000' || true
-```
+The app and cursor consumer are not published on host ports; only Caddy exposes 80/443.
 
 ## 2. Package the project locally
 
@@ -91,7 +87,6 @@ POSTGRES_PASSWORD=<openssl rand -hex 16>
 SESSION_SECRET=<openssl rand -hex 32>
 GRAFANA_ADMIN_PASSWORD=<openssl rand -hex 16>
 
-APP_BIND_ADDRESS=127.0.0.1
 CSP_UPGRADE_INSECURE_REQUESTS=true
 SESSION_COOKIE_SECURE=true
 
@@ -105,7 +100,10 @@ openssl rand -hex 16   # POSTGRES_PASSWORD and GRAFANA_ADMIN_PASSWORD
 openssl rand -hex 32   # SESSION_SECRET
 ```
 
-Keep `KAFKA_BROKERS` because you want the analytics profile. If you later disable analytics, comment it out.
+Keep `KAFKA_BROKERS` because you want the analytics and cursor profiles. The
+`compose.cursor.yaml` overlay enables cursor publishing; remove that overlay and
+`--profile cursor` from the commands below to disable cursor streaming. If you later disable
+analytics too, comment `KAFKA_BROKERS` out.
 
 ## 5. Validate Compose
 
@@ -115,7 +113,8 @@ cd /opt/ttt
 docker compose -p ttt --env-file .env \
   -f infra/compose/compose.yaml \
   -f infra/compose/compose.prod.yaml \
-  --profile observability --profile analytics \
+  -f infra/compose/compose.cursor.yaml \
+  --profile observability --profile analytics --profile cursor \
   config >/dev/null
 ```
 
@@ -142,7 +141,8 @@ cd /opt/ttt
 docker compose -p ttt --env-file .env \
   -f infra/compose/compose.yaml \
   -f infra/compose/compose.prod.yaml \
-  --profile observability --profile analytics \
+  -f infra/compose/compose.cursor.yaml \
+  --profile observability --profile analytics --profile cursor \
   up -d --build
 ```
 
@@ -151,10 +151,10 @@ This single command starts:
 - `app`
 - `postgres`
 - `redis`
-- `caddy` on ports 80/443, proxying to `app:3000`
+- `caddy` on ports 80/443, proxying to `app:3000` and `/cursor.io` to the cursor consumer
 - `prometheus`
 - `grafana`
-- `redpanda`, `redpanda-init`, `analytics-worker`
+- `redpanda`, `redpanda-init`, `analytics-worker`, `cursor-consumer`
 
 Caddy obtains the TLS certificate automatically once DNS points at the VPS.
 
@@ -168,11 +168,14 @@ docker compose -p ttt --env-file .env \
   -f infra/compose/compose.prod.yaml ps
 ```
 
-App health inside the VPS:
+App health inside the VPS (the app is not published on a host port):
 
 ```sh
-curl -fsS http://127.0.0.1:3000/api/health/live
-curl -fsS http://127.0.0.1:3000/api/health/ready
+docker compose -p ttt --env-file .env \
+  -f infra/compose/compose.yaml \
+  -f infra/compose/compose.prod.yaml \
+  exec -T app node -e \
+  "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(()=>process.exit(1))"
 ```
 
 Public HTTPS:
@@ -221,6 +224,14 @@ docker compose -p ttt --env-file .env \
   -f infra/compose/compose.prod.yaml logs --tail=100 analytics-worker
 ```
 
+Check the cursor consumer when the cursor profile is running:
+
+```sh
+docker compose -p ttt --env-file .env \
+  -f infra/compose/compose.yaml \
+  -f infra/compose/compose.prod.yaml logs --tail=100 cursor-consumer
+```
+
 ## 10. Future updates
 
 From `/workspace`, rebuild the archive excluding `.env`:
@@ -259,7 +270,8 @@ tar -xzf /tmp/ttt.tar.gz
 docker compose -p ttt --env-file .env \
   -f infra/compose/compose.yaml \
   -f infra/compose/compose.prod.yaml \
-  --profile observability --profile analytics \
+  -f infra/compose/compose.cursor.yaml \
+  --profile observability --profile analytics --profile cursor \
   up -d --build
 ```
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ackErrorSchema } from './api.js';
+import type { CursorDot, CursorLeave, CursorMoveRequest, CursorSubscribeRequest } from './cursor.js';
 import type {
   GamePresence,
   GameUpdate,
@@ -23,6 +24,7 @@ export interface ClientToServerEvents {
   'game:move': (request: MoveRequest, ack: SocketAckHandler) => void;
   'game:leave': (request: LeaveGameRequest, ack: SocketAckHandler) => void;
   'game:rematch': (request: RematchRequest, ack: SocketAckHandler) => void;
+  'cursor:move': (request: CursorMoveRequest) => void;
 }
 
 export interface ServerToClientEvents {
@@ -30,4 +32,13 @@ export interface ServerToClientEvents {
   'game:update': (update: GameUpdate) => void;
   'game:presence': (presence: GamePresence) => void;
   'game:rematch-started': (rematch: RematchStarted) => void;
+}
+
+export interface CursorClientToServerEvents {
+  'cursor:subscribe': (request: CursorSubscribeRequest, ack: SocketAckHandler) => void;
+}
+
+export interface CursorServerToClientEvents {
+  'cursor:dot': (dot: CursorDot) => void;
+  'cursor:leave': (leave: CursorLeave) => void;
 }

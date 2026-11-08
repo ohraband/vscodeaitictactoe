@@ -5,11 +5,24 @@
 	encode zstd gzip
 	header Strict-Transport-Security "max-age=31536000"
 
-	reverse_proxy app:3000 {
-		header_up Host {host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto {scheme}
+	# Keep the original Host header, including any non-default port. Rewriting
+	# it with {host} drops the port and breaks the app's same-origin checks.
+	# Optional cursor streaming profile. Requests only reach this route when the
+	# cursor consumer is running; otherwise the rest of the app is unaffected.
+	handle /cursor.io* {
+		reverse_proxy cursor-consumer:3001 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		reverse_proxy app:3000 {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Host {hostport}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
 }
 

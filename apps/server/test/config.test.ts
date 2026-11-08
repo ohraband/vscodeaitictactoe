@@ -26,6 +26,7 @@ describe('loadConfig', () => {
       sessionCookieSecure: false,
       metricsReplicaId: 'local',
       kafka: null,
+      cursor: null,
     });
   });
 
@@ -71,7 +72,30 @@ describe('loadConfig', () => {
         topic: 'games.completed',
         groupId: 'games-analytics',
       },
+      cursor: null,
     });
+  });
+
+  it('enables cursor streaming only with Kafka brokers', () => {
+    const config = loadConfig({
+      ...validEnv,
+      KAFKA_BROKERS: 'kafka-a:9092',
+      CURSOR_ENABLED: 'true',
+      CURSOR_PORT: '3101',
+      KAFKA_CURSOR_TOPIC: 'cursors.moved',
+      KAFKA_CURSOR_GROUP_ID: 'cursor-viewers',
+    });
+
+    expect(config.cursor).toEqual({
+      brokers: ['kafka-a:9092'],
+      clientId: 'ttt-server-cursor',
+      topic: 'cursors.moved',
+      groupId: 'cursor-viewers',
+      port: 3101,
+      path: '/cursor.io',
+    });
+
+    expect(loadConfig({ ...validEnv, CURSOR_ENABLED: 'true' }).cursor).toBeNull();
   });
 
   it('allows plain-HTTP production to disable secure cookies', () => {

@@ -40,7 +40,13 @@ export const SOCKET_EVENTS = {
   GAME_UPDATE: 'game:update',
   GAME_PRESENCE: 'game:presence',
   GAME_REMATCH_STARTED: 'game:rematch-started',
+  CURSOR_MOVE: 'cursor:move',
+  CURSOR_SUBSCRIBE: 'cursor:subscribe',
+  CURSOR_DOT: 'cursor:dot',
+  CURSOR_LEAVE: 'cursor:leave',
 } as const;
+
+export const CURSOR_SOCKET_PATH = '/cursor.io';
 
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 6;

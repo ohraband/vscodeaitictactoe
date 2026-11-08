@@ -9,11 +9,20 @@ import { api, type GameListFilters } from './client';
 
 export const queryKeys = {
   me: ['me'] as const,
+  config: ['config'] as const,
   games: ['games'] as const,
   gameList: (filters: GameListFilters) => ['games', 'list', filters] as const,
   game: (gameId: string) => ['games', 'detail', gameId] as const,
   leaderboard: ['leaderboard'] as const,
 };
+
+export function useAppConfig() {
+  return useQuery({
+    queryKey: queryKeys.config,
+    queryFn: api.getConfig,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
 
 export function useMe() {
   return useQuery({

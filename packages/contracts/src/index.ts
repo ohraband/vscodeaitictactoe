@@ -6,3 +6,4 @@ export * from './game.js';
 export * from './api.js';
 export * from './socket.js';
 export * from './analytics.js';
+export * from './cursor.js';

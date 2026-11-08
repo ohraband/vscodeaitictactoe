@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -b && pnpm --filter @ttt/web build",
     "dev": "pnpm --parallel --filter @ttt/server --filter @ttt/web dev",
+    "dev:cursor": "pnpm --filter @ttt/server dev:cursor",
     "typecheck": "pnpm build && pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

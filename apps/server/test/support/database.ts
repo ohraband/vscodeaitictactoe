@@ -14,6 +14,7 @@ import { describe } from 'vitest';
 import type { AnalyticsPublisher } from '../../src/analytics/publisher.js';
 import { buildApp } from '../../src/app.js';
 import type { ServerConfig } from '../../src/config.js';
+import type { CursorPublisher } from '../../src/cursor/publisher.js';
 import type { RealtimeServerFactory } from '../../src/realtime.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -63,6 +64,7 @@ export function createTestConfig(overrides: Partial<ServerConfig> = {}): ServerC
     sessionCookieSecure: false,
     metricsReplicaId: 'test-replica',
     kafka: null,
+    cursor: null,
     ...overrides,
   };
 }
@@ -72,6 +74,7 @@ export async function createTestContext(
     readonly turnSeconds?: number;
     readonly realtimeFactory?: RealtimeServerFactory;
     readonly analyticsPublisher?: AnalyticsPublisher;
+    readonly cursorPublisher?: CursorPublisher;
     readonly config?: Partial<ServerConfig>;
   } = {},
 ): Promise<TestContext> {
@@ -92,6 +95,7 @@ export async function createTestContext(
     prisma,
     ...(options.realtimeFactory ? { realtimeFactory: options.realtimeFactory } : {}),
     ...(options.analyticsPublisher ? { analyticsPublisher: options.analyticsPublisher } : {}),
+    ...(options.cursorPublisher ? { cursorPublisher: options.cursorPublisher } : {}),
   });
 
   await app.ready();
